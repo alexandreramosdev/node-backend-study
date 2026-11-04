@@ -1,13 +1,22 @@
 {
   "name": "backend-study",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend de estudo com Node.js puro, sem frameworks e sem dependencias externas",
+  "main": "app.js",
   "scripts": {
+    "start": "node server.js",
     "test": "node --test"
   },
-  "keywords": [],
+  "keywords": [
+    "node",
+    "http",
+    "study",
+    "backend"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.17"
+  }
 }

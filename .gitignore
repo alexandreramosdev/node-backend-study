@@ -19,3 +19,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Dados locais do estudo
+data/
