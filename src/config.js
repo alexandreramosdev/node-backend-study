@@ -19,8 +19,33 @@ const path = require('node:path');
 
 const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
 const DEFAULT_PORT = 3000;
+const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_DATA_FILE = './data/tasks.json';
 const DEFAULT_LOG_LEVEL = 'info';
+const MIN_AUTH_TOKEN_LENGTH = 16;
+const WEAK_AUTH_TOKENS = new Set([
+  'changeme',
+  'dev-secret',
+  'password',
+  'secret',
+  'token'
+]);
+
+function isWeakAuthToken(token) {
+  const normalized = token.toLowerCase();
+
+  return [...WEAK_AUTH_TOKENS].some(
+    (weak) =>
+      normalized === weak ||
+      normalized.startsWith(`${weak}-`) ||
+      normalized.startsWith(`${weak}_`)
+  );
+}
+
+// Por segurança, o arquivo de dados deve ficar dentro de ./data. Isso impede
+// que uma variável DATA_FILE maliciosa aponte para /etc/passwd ou outro arquivo
+// gravável do sistema.
+const DATA_DIR = path.resolve(process.cwd(), 'data');
 
 class ConfigError extends Error {
   constructor(details) {
@@ -53,6 +78,20 @@ function parsePort(raw, errors) {
   return value;
 }
 
+function parseHost(raw, errors) {
+  if (raw === undefined) {
+    // Escutar apenas no loopback evita expor a API na rede local por acidente.
+    return DEFAULT_HOST;
+  }
+
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    errors.push('HOST must be a non-empty string');
+    return undefined;
+  }
+
+  return raw.trim();
+}
+
 function parseDataFile(raw, errors) {
   const value = raw === undefined ? DEFAULT_DATA_FILE : raw;
 
@@ -61,10 +100,23 @@ function parseDataFile(raw, errors) {
     return undefined;
   }
 
-  // Caminhos relativos são resolvidos a partir do diretório em que o processo
-  // foi iniciado, não do arquivo config.js. Isso evita caminhos relativos
-  // inesperados quando o projeto é executado de outro lugar.
-  return path.resolve(process.cwd(), value.trim());
+  try {
+    // Caminhos relativos são resolvidos a partir do diretório em que o processo
+    // foi iniciado, não do arquivo config.js.
+    const resolved = path.resolve(process.cwd(), value.trim());
+    const relative = path.relative(DATA_DIR, resolved);
+
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      errors.push('DATA_FILE must point inside ./data');
+      return undefined;
+    }
+
+    return resolved;
+  } catch {
+    // path.resolve pode lançar com entradas exóticas (ex.: null byte).
+    errors.push('DATA_FILE must be a valid path');
+    return undefined;
+  }
 }
 
 function parseLogLevel(raw, errors) {
@@ -94,14 +146,29 @@ function parseAuthToken(raw, errors) {
     return undefined;
   }
 
+  const token = raw.trim();
+
+  if (token.length < MIN_AUTH_TOKEN_LENGTH) {
+    errors.push(
+      `AUTH_TOKEN must be at least ${MIN_AUTH_TOKEN_LENGTH} characters`
+    );
+    return undefined;
+  }
+
+  if (isWeakAuthToken(token)) {
+    errors.push('AUTH_TOKEN must not be a common/weak value');
+    return undefined;
+  }
+
   // Nunca logamos o valor do token; aqui ele só é normalizado.
-  return raw.trim();
+  return token;
 }
 
 function loadConfig(env = process.env) {
   const errors = [];
 
   const port = parsePort(env.PORT, errors);
+  const host = parseHost(env.HOST, errors);
   const dataFile = parseDataFile(env.DATA_FILE, errors);
   const logLevel = parseLogLevel(env.LOG_LEVEL, errors);
   const authToken = parseAuthToken(env.AUTH_TOKEN, errors);
@@ -112,10 +179,10 @@ function loadConfig(env = process.env) {
 
   return {
     port,
+    host,
     dataFile,
     logLevel,
     authToken,
-    nodeEnv: env.NODE_ENV || 'development',
     bodyLimit: 1024 * 1024, // 1 MiB
     shutdownTimeoutMs: 10000
   };

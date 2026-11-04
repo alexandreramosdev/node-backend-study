@@ -30,22 +30,36 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
-const { isPlainObject } = require('../domain/tasks');
+const { isPlainObject, MAX_TITLE_LENGTH } = require('../domain/tasks');
 
 const VERSION = 1;
+const STORED_FIELDS = ['id', 'title', 'done', 'createdAt'];
 
 function cloneTask(task) {
   return { ...task };
 }
 
 function isStoredTask(task) {
+  if (!isPlainObject(task)) {
+    return false;
+  }
+
+  // Rejeita campos extras no arquivo (ex.: "__proto__", "admin") e aplica as
+  // mesmas regras de tamanho do domínio, evitando dados inválidos via edição
+  // manual do JSON.
+  if (Object.keys(task).some((key) => !STORED_FIELDS.includes(key))) {
+    return false;
+  }
+
   return (
-    isPlainObject(task) &&
     typeof task.id === 'string' &&
     task.id.length > 0 &&
     typeof task.title === 'string' &&
+    task.title.trim().length > 0 &&
+    task.title.length <= MAX_TITLE_LENGTH &&
     typeof task.done === 'boolean' &&
-    typeof task.createdAt === 'string'
+    typeof task.createdAt === 'string' &&
+    !Number.isNaN(Date.parse(task.createdAt))
   );
 }
 
@@ -82,7 +96,8 @@ async function writeAtomic(filePath, data) {
   );
 
   try {
-    await fs.writeFile(temporaryPath, data, 'utf8');
+    // mode 0600: só o dono do processo pode ler/gravar o arquivo.
+    await fs.writeFile(temporaryPath, data, { encoding: 'utf8', mode: 0o600 });
     await renameWithRetry(temporaryPath, filePath);
   } catch (err) {
     // Em caso de falha, não deixamos lixo para trás.
@@ -102,13 +117,20 @@ async function createFileRepository({ filePath } = {}) {
   let writeChain = Promise.resolve();
 
   async function load() {
-    // O diretório pode não existir no primeiro boot.
-    await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
-
-    let raw;
+    // O diretório pode não existir no primeiro boot. 0700 limita o acesso.
+    await fs.mkdir(path.dirname(resolvedPath), {
+      recursive: true,
+      mode: 0o700
+    });
 
     try {
-      raw = await fs.readFile(resolvedPath, 'utf8');
+      const stats = await fs.lstat(resolvedPath);
+
+      if (stats.isSymbolicLink()) {
+        throw new Error(
+          `Data file must not be a symbolic link: ${resolvedPath}`
+        );
+      }
     } catch (err) {
       if (err.code === 'ENOENT') {
         return; // primeira execução: começa vazio
@@ -116,6 +138,8 @@ async function createFileRepository({ filePath } = {}) {
 
       throw err;
     }
+
+    const raw = await fs.readFile(resolvedPath, 'utf8');
 
     if (raw.trim().length === 0) {
       throw new Error(`Data file is empty: ${resolvedPath}`);
@@ -199,7 +223,15 @@ async function createFileRepository({ filePath } = {}) {
     async create(task) {
       const stored = cloneTask(task);
       tasks.set(stored.id, stored);
-      await persist(); // só responde depois que o disco confirmou
+
+      try {
+        await persist(); // só responde depois que o disco confirmou
+      } catch (err) {
+        // Rollback: mantém memória e disco consistentes se a escrita falhar.
+        tasks.delete(stored.id);
+        throw err;
+      }
+
       return cloneTask(stored);
     },
 
@@ -218,18 +250,34 @@ async function createFileRepository({ filePath } = {}) {
       };
 
       tasks.set(id, updated);
-      await persist();
+
+      try {
+        await persist();
+      } catch (err) {
+        tasks.set(id, current);
+        throw err;
+      }
+
       return cloneTask(updated);
     },
 
     async remove(id) {
-      const removed = tasks.delete(id);
+      const current = tasks.get(id);
 
-      if (removed) {
-        await persist();
+      if (!current) {
+        return false;
       }
 
-      return removed;
+      tasks.delete(id);
+
+      try {
+        await persist();
+      } catch (err) {
+        tasks.set(id, current);
+        throw err;
+      }
+
+      return true;
     }
   };
 }

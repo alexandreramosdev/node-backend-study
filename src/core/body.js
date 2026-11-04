@@ -27,9 +27,15 @@ function readJsonBody(req, { limit = DEFAULT_LIMIT } = {}) {
 
     // Caminho rápido: Content-Length confiável permite rejeitar sem ler.
     if (contentLength !== undefined) {
+      if (!/^\d+$/.test(contentLength)) {
+        req.resume();
+        reject(invalidJson('Invalid Content-Length'));
+        return;
+      }
+
       const declaredLength = Number(contentLength);
 
-      if (!Number.isInteger(declaredLength) || declaredLength < 0) {
+      if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
         req.resume();
         reject(invalidJson('Invalid Content-Length'));
         return;

@@ -42,7 +42,9 @@ function assertPlainObject(input) {
 function assertKnownFields(input, allowedFields) {
   for (const key of Object.keys(input)) {
     if (!allowedFields.includes(key)) {
-      throw validation(`Unknown field "${key}"`);
+      // Mensagem genérica: não ecoamos o nome do campo enviado pelo cliente,
+      // evitando reflexão de conteúdo em respostas de erro.
+      throw validation('Request body contains an unknown field');
     }
   }
 }

@@ -120,3 +120,27 @@ test('authentication fails before body parsing', async (t) => {
 
   assert.equal(response.status, 401);
 });
+
+test('repeated authentication failures are rate limited', async (t) => {
+  const server = await setup(t);
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const response = await request(server.baseUrl, '/tasks', {
+      method: 'POST',
+      token: 'wrong',
+      body: { title: 'Task' }
+    });
+
+    assert.equal(response.status, 401);
+  }
+
+  const blocked = await request(server.baseUrl, '/tasks', {
+    method: 'POST',
+    token: 'wrong',
+    body: { title: 'Task' }
+  });
+
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.body.error.code, 'TOO_MANY_REQUESTS');
+  assert.ok(blocked.headers.get('retry-after'));
+});

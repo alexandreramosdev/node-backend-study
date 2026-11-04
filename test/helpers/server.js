@@ -26,7 +26,9 @@ async function startTestServer(options = {}) {
   const app = createApp({
     repository: options.repository || createMemoryRepository(),
     logger: options.logger || createSilentLogger(),
-    config: options.config || {},
+    // Testes de CRUD rodam sem auth de forma EXPLÍCITA; testes de auth passam
+    // config: { authToken: '...' }.
+    config: options.config || { auth: false },
     now: options.now,
     uuid: options.uuid
   });

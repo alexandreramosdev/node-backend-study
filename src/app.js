@@ -61,6 +61,10 @@ function routeResolver(router) {
 
 // `createApp` recebe dependências com valores padrão para facilitar o uso.
 // Injetar `now` e `uuid` permite testes determinísticos de data e id.
+//
+// Segurança fail-closed: por padrão exigimos `config.authToken`. Para testes
+// que precisam das rotas sem autenticação, a desativação deve ser EXPLÍCITA
+// via `config.auth === false`. Nunca deixamos as escritas abertas por omissão.
 function createApp({
   repository = createMemoryRepository(),
   logger = createLogger(),
@@ -68,6 +72,17 @@ function createApp({
   now = () => new Date(),
   uuid = () => randomUUID()
 } = {}) {
+  const authDisabled = config.auth === false;
+
+  if (
+    !authDisabled &&
+    (typeof config.authToken !== 'string' || config.authToken.length === 0)
+  ) {
+    throw new Error(
+      'createApp requires config.authToken; use auth: false only in tests'
+    );
+  }
+
   const router = createRouter();
   registerRoutes(router, { repository, now, uuid });
 
@@ -83,7 +98,7 @@ function createApp({
     routeResolver(router)
   ];
 
-  if (config.authToken) {
+  if (!authDisabled) {
     middlewares.push(bearerAuth({ token: config.authToken }));
   }
 

@@ -18,7 +18,7 @@ test('router matches a static route', () => {
   const result = router.resolve('GET', '/health');
 
   assert.equal(result.type, 'match');
-  assert.deepEqual(result.params, {});
+  assert.deepEqual({ ...result.params }, {});
   assert.equal(result.handler, handler);
 });
 
@@ -29,7 +29,7 @@ test('router matches a route with params', () => {
   const result = router.resolve('GET', '/tasks/abc-123');
 
   assert.equal(result.type, 'match');
-  assert.deepEqual(result.params, { id: 'abc-123' });
+  assert.deepEqual({ ...result.params }, { id: 'abc-123' });
 });
 
 test('router decodes params and normalizes the trailing slash', () => {
@@ -39,7 +39,7 @@ test('router decodes params and normalizes the trailing slash', () => {
   const result = router.resolve('GET', '/tasks/hello%20world/');
 
   assert.equal(result.type, 'match');
-  assert.deepEqual(result.params, { id: 'hello world' });
+  assert.deepEqual({ ...result.params }, { id: 'hello world' });
 });
 
 test('router returns not_found for an unknown path', () => {

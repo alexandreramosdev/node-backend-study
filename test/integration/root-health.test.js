@@ -18,6 +18,10 @@ test('GET / returns the hello message', async (t) => {
   assert.deepEqual(response.body, { message: 'Hello World' });
   assert.match(response.headers.get('content-type'), /application\/json/);
   assert.ok(response.headers.get('x-request-id'));
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(response.headers.get('x-frame-options'), 'DENY');
 });
 
 test('GET /health returns the health status', async (t) => {

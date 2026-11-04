@@ -23,6 +23,15 @@ function empty(status, headers = {}) {
   return { status, headers, body: undefined };
 }
 
+// Headers seguros aplicados a todas as respostas. Podem ser sobrescritos pelo
+// ResponseSpec quando necessário, mas o padrão é restritivo.
+const DEFAULT_SECURITY_HEADERS = Object.freeze({
+  'X-Content-Type-Options': 'nosniff',
+  'Cache-Control': 'no-store',
+  'Referrer-Policy': 'no-referrer',
+  'X-Frame-Options': 'DENY'
+});
+
 function sendResponse(res, spec) {
   if (!spec) {
     throw new Error('Handler did not return a response');
@@ -34,7 +43,10 @@ function sendResponse(res, spec) {
     return;
   }
 
-  const headers = { ...(spec.headers || {}) };
+  const headers = {
+    ...DEFAULT_SECURITY_HEADERS,
+    ...(spec.headers || {})
+  };
 
   if (spec.body === undefined) {
     // 204: sem Content-Type e sem corpo.

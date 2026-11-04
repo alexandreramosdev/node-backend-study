@@ -3,21 +3,19 @@
 // ---------------------------------------------------------------------------
 // app.js (raiz)
 //
-// Este arquivo mantém o uso mais simples possível:
+// Ponto de entrada "de biblioteca" do projeto. O modo recomendado de executar
+// é `server.js` (npm start), que carrega config, repositório e autenticação.
 //
-//   const app = require('./app');
+// Por segurança, este arquivo NÃO exporta mais um handler pronto sem auth.
+// Exportamos a fábrica `createApp`, que exige `config.authToken` por padrão:
+//
+//   const { createApp } = require('./app');
+//   const app = createApp({ config: { authToken: process.env.AUTH_TOKEN } });
 //   http.createServer(app);
 //
-// O handler é criado pela fábrica `createApp` (src/app.js), que recebe as
-// dependências. Aqui usamos os padrões: repositório em memória e logger comum.
-//
-// `createApp` também é exportado como propriedade para permitir que testes e
-// outros pontos do projeto criem uma aplicação com repositório/logger próprios.
+// Para testes, a desativação precisa ser explícita: createApp({ config: { auth: false } }).
 // ---------------------------------------------------------------------------
 
 const { createApp } = require('./src/app');
 
-const app = createApp();
-
-module.exports = app;
-module.exports.createApp = createApp;
+module.exports = { createApp };

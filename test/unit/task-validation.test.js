@@ -49,12 +49,12 @@ test('validateCreate rejects invalid payloads', () => {
 });
 
 test('validateCreate rejects unknown fields, including immutable ones', () => {
-  expectValidation(() => validateCreate({ title: 'Task', extra: true }), 'extra');
-  expectValidation(() => validateCreate({ title: 'Task', id: 'x' }), 'id');
   expectValidation(
-    () => validateCreate({ title: 'Task', createdAt: 'x' }),
-    'createdAt'
+    () => validateCreate({ title: 'Task', extra: true }),
+    'unknown field'
   );
+  expectValidation(() => validateCreate({ title: 'Task', id: 'x' }));
+  expectValidation(() => validateCreate({ title: 'Task', createdAt: 'x' }));
 });
 
 test('validatePatch accepts partial updates', () => {
@@ -73,8 +73,8 @@ test('validatePatch requires at least one field', () => {
 test('validatePatch rejects unknown and invalid fields', () => {
   expectValidation(() => validatePatch({ done: 'yes' }), 'done');
   expectValidation(() => validatePatch({ title: '' }), 'title');
-  expectValidation(() => validatePatch({ id: 'x' }), 'id');
-  expectValidation(() => validatePatch({ createdAt: 'x' }), 'createdAt');
+  expectValidation(() => validatePatch({ id: 'x' }), 'unknown field');
+  expectValidation(() => validatePatch({ createdAt: 'x' }), 'unknown field');
 });
 
 test('validateTitle and validateDone expose focused validation', () => {

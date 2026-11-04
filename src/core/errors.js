@@ -53,7 +53,16 @@ function methodNotAllowed(allowedMethods) {
 }
 
 function payloadTooLarge() {
-  return new AppError(413, 'PAYLOAD_TOO_LARGE', 'Payload too large');
+  // Connection: close evita manter uma conexão viva depois de um corpo grande.
+  return new AppError(413, 'PAYLOAD_TOO_LARGE', 'Payload too large', {
+    Connection: 'close'
+  });
+}
+
+function tooManyRequests(retryAfterSeconds) {
+  return new AppError(429, 'TOO_MANY_REQUESTS', 'Too many requests', {
+    'Retry-After': String(Math.max(1, retryAfterSeconds))
+  });
 }
 
 function unsupportedMediaType() {
@@ -95,6 +104,7 @@ module.exports = {
   notFound,
   methodNotAllowed,
   payloadTooLarge,
+  tooManyRequests,
   unsupportedMediaType,
   internal,
   toResponseSpec

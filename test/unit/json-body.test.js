@@ -60,6 +60,15 @@ test('readJsonBody rejects a chunked body above the limit', async () => {
   });
 });
 
+test('readJsonBody rejects invalid Content-Length values', async () => {
+  const req = fakeRequest(['{}'], { 'content-length': '0x10' });
+
+  await assertRejectsAppError(readJsonBody(req), {
+    status: 400,
+    code: 'INVALID_JSON'
+  });
+});
+
 test('readJsonBody accepts a body exactly at the limit', async () => {
   const payload = '{"a":1}';
   const req = fakeRequest([payload], {

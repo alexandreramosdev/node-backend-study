@@ -156,6 +156,7 @@ test('POST /tasks rejects payloads above 1 MiB', async (t) => {
 
   assert.equal(response.status, 413);
   assert.equal(response.body.error.code, 'PAYLOAD_TOO_LARGE');
+  assert.equal(response.headers.get('connection'), 'close');
 });
 
 test('PATCH /tasks/:id updates allowed fields', async (t) => {

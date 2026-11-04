@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 const http = require('node:http');
+const path = require('node:path');
 const { loadConfig, ConfigError } = require('./src/config');
 const { createLogger } = require('./src/logger');
 const { createRepository } = require('./src/repositories');
@@ -30,6 +31,15 @@ async function main() {
   const app = createApp({ repository, logger, config });
   const server = http.createServer(app);
 
+  // Timeouts e limites explícitos reduzem slowloris e exaustão de conexões.
+  // headersTimeout precisa ser <= requestTimeout para o Node não reclamar.
+  server.headersTimeout = 10_000;
+  server.requestTimeout = 15_000;
+  server.keepAliveTimeout = 5_000;
+  server.maxConnections = 1_000;
+  server.maxRequestsPerSocket = 100;
+  server.maxHeadersCount = 100;
+
   // Erros de rede (por exemplo, EADDRINUSE) chegam por este evento, não pelo
   // await de listen. Sem este handler, o processo continuaria rodando.
   server.on('error', (err) => {
@@ -38,14 +48,17 @@ async function main() {
   });
 
   // `listen` é assíncrono: o Promise resolve no evento "listening".
+  // O host padrão é 127.0.0.1 (loopback), não todas as interfaces.
   await new Promise((resolve) => {
-    server.listen(config.port, resolve);
+    server.listen(config.port, config.host, resolve);
   });
 
   const address = server.address();
   logger.info('server listening', {
+    host: config.host,
     port: address.port,
-    dataFile: config.dataFile
+    // Logamos apenas o basename para não expor a estrutura de diretórios.
+    dataFile: path.basename(config.dataFile)
   });
 
   let shuttingDown = false;
@@ -101,11 +114,12 @@ async function main() {
 if (require.main === module) {
   main().catch((err) => {
     // ConfigError já traz uma mensagem amigável e não deve vazar o token.
-    if (err instanceof ConfigError) {
-      console.error(err.message);
-    } else {
-      console.error(err);
-    }
+    // Para os demais erros, evitamos imprimir stack trace no console.
+    console.error(
+      err instanceof ConfigError
+        ? err.message
+        : `Failed to start server: ${err.message}`
+    );
 
     process.exitCode = 1;
   });

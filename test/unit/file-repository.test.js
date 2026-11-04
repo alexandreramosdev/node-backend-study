@@ -7,6 +7,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  chmod,
   mkdtemp,
   readFile,
   readdir,
@@ -149,6 +150,54 @@ test('file repository rejects duplicate task ids', async (t) => {
     createFileRepository({ filePath }),
     /duplicate task id/
   );
+});
+
+test('file repository rejects invalid stored tasks', async (t) => {
+  const filePath = await tempFilePath(t);
+
+  const invalidTasks = [
+    { ...task('1'), extra: true },
+    { ...task('1'), title: '' },
+    { ...task('1'), title: 'a'.repeat(201) },
+    { ...task('1'), createdAt: 'not-a-date' }
+  ];
+
+  for (const invalidTask of invalidTasks) {
+    await writeFile(
+      filePath,
+      JSON.stringify({ version: VERSION, tasks: [invalidTask] }),
+      'utf8'
+    );
+
+    await assert.rejects(
+      createFileRepository({ filePath }),
+      /contains an invalid task/
+    );
+  }
+});
+
+test('file repository rolls back memory when persistence fails', async (t) => {
+  if (
+    process.platform === 'win32' ||
+    (typeof process.getuid === 'function' && process.getuid() === 0)
+  ) {
+    t.skip('requires non-root POSIX permissions');
+    return;
+  }
+
+  const filePath = await tempFilePath(t);
+  const repository = await createFileRepository({ filePath });
+  const directory = path.dirname(filePath);
+
+  await repository.create(task('1'));
+  await chmod(directory, 0o500);
+
+  try {
+    await assert.rejects(repository.create(task('2')));
+    assert.equal(await repository.findById('2'), null);
+  } finally {
+    await chmod(directory, 0o700);
+  }
 });
 
 test('file repository writes the versioned envelope', async (t) => {

@@ -43,7 +43,9 @@ function matchSegments(patternSegments, requestedSegments) {
     return null;
   }
 
-  const params = {};
+  // Objeto sem protótipo evita que nomes de parâmetro como "__proto__"
+  // interajam com o prototype de Object.
+  const params = Object.create(null);
 
   for (let index = 0; index < patternSegments.length; index += 1) {
     const pattern = patternSegments[index];
